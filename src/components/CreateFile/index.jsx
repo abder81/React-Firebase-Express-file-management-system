@@ -23,29 +23,17 @@ const CreateFile = ({ currentFolder }) => {
     e.preventDefault();
 
     if (!file) return toast.dark("Please add file name!");
+
     const fileExtension =
       file.split(".").length > 1
         ? file.split(".")[file.split(".").length - 1].toLowerCase()
         : "txt";
-    const allowedExtensions = [
-      "html",
-      "php",
-      "js",
-      "jsx",
-      "txt",
-      "xml",
-      "css",
-      "c",
-      "cpp",
-      "java",
-      "cs",
-      "py",
-      "json",
-    ];
+    const allowedExtensions = ["pdf"]; // Only allow PDF files
 
     if (allowedExtensions.indexOf(fileExtension) === -1) {
       return toast.dark(`File with extension ${fileExtension} not allowed!`);
     }
+
     const fileName =
       file.split(".").length > 1 ? file : file + "." + fileExtension;
 
@@ -62,7 +50,7 @@ const CreateFile = ({ currentFolder }) => {
           );
 
     if (filteredFiles.length > 0)
-      return toast.dark("This is alredy present in folder");
+      return toast.dark("This file is already present in the folder");
 
     if (currentFolder === "root folder") {
       dispatch(
@@ -121,14 +109,14 @@ const CreateFile = ({ currentFolder }) => {
             <Form.Group controlId="formBasicFolderName" className="my-2">
               <Form.Control
                 type="text"
-                placeholder="eg. index.html, index.js, index.php, index.txt"
+                placeholder="eg. file.pdf"
                 value={file}
                 onChange={(e) => setFile(e.target.value)}
               />
             </Form.Group>
             <Form.Group controlId="formBasicFolderSubmit" className="mt-5">
               <Button type="submit" className="form-control" variant="primary">
-                Add File
+                Add PDF File
               </Button>
             </Form.Group>
           </Form>
@@ -140,7 +128,7 @@ const CreateFile = ({ currentFolder }) => {
         className="border-1 d-flex align-items-center justify-content-between rounded-2"
       >
         <FontAwesomeIcon icon={faFileAlt} />
-        &nbsp; Create File
+        &nbsp; Create PDF File
       </Button>
     </>
   );

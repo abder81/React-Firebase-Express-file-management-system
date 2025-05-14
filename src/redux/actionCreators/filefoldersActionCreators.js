@@ -257,32 +257,70 @@ export const deselctFolder = (docId) => (dispatch, state) => {
   dispatch(deselectItems([docId, ...filesDocIds, ...foldersDocIds]));
 };
 
+const deleteFileFromServer = async ({ uid, parent, data, name, url, path }) => {
+  try {
+    // Extract the filename from the URL (assuming the format is 'http://localhost:5000/uploads/filename.pdf')
+    const filename = url.split("/uploads/")[1];  // Extract filename from URL
+    console.log("Deleting file from server:", filename);  // Debug log
+
+    const response = await fetch("http://localhost:5000/delete", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ filename: filename }), // Send the correct filename
+    });
+
+    if (!response.ok) {
+      const errorDetails = await response.json();
+      console.error("Server responded with an error:", errorDetails);
+      throw new Error(
+        `Failed to delete file from server: ${errorDetails.error || "Unknown error"}`
+      );
+    }
+
+    const data = await response.json();
+    console.log("File deletion successful:", data);
+    return data;
+  } catch (error) {
+    console.error("Error in deleteFileFromServer:", error.message);
+    throw error;
+  }
+};
+
+
 const deleteFiles = (files) => {
-  const promises = files.map((file) => {
-    if (file.data.url) {
-      try {
-        database.files.doc(file.docId).delete();
-        storage.refFromURL(file.data.url).delete();
-      } catch (err) {
-        console.log(err);
-        console.log('Failed to delete file', file.data.name);
+  const promises = files.map(async (file) => {
+    try {
+      // Delete file from Firestore first
+      await database.files.doc(file.docId).delete();
+
+      // Only delete from the server (Express server) if the file has a URL
+      if (file.data.url) {
+        await deleteFileFromServer(file.data);  // Pass the entire file object
       }
 
       return true;
+    } catch (err) {
+      console.error("Failed to delete file:", file.data.name, err);
+      return false;
     }
-    return database.files.doc(file.docId).delete();
   });
 
   return Promise.all(promises);
 };
+
+
+
+   
 
 export const deleteItems = () => (dispatch, state) => {
   const {
     filefolders: { selectedItems },
   } = state();
 
-  const files = selectedItems.filter((item) => item.type === 'file');
-  const folders = selectedItems.filter((item) => item.type === 'folder');
+  const files = selectedItems.filter((item) => item.type === "file");
+  const folders = selectedItems.filter((item) => item.type === "folder");
 
   deleteFiles(files).then((response) => {
     if (response.length === files.length) {
@@ -296,6 +334,6 @@ export const deleteItems = () => (dispatch, state) => {
     dispatch(deleteFoldersAction(folders.map((folder) => folder.docId)));
     dispatch(deselectAll());
 
-    toast.success('Deleted Items Successfully!');
+    toast.success("Deleted Items Successfully!");
   });
 };
