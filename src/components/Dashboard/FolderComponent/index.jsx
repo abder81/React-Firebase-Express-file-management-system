@@ -6,7 +6,7 @@ import {
   faFolder,
 } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Col, Row } from 'react-bootstrap';
 import { shallowEqual, useDispatch, useSelector } from 'react-redux';
 import { useHistory, useParams } from 'react-router-dom';
@@ -16,17 +16,26 @@ import {
   getUserFiles,
   getUserFolders,
   selectItem,
-  deselectItem,
-  deselectAll,
-  deselctFolder,
   selectFolder,
+  deselectAll,
+  deselectItem,
 } from '../../../redux/actionCreators/filefoldersActionCreators.js';
 import SubNav from '../SubNav.js/index.jsx';
+import SearchBar from '../../SearchBar/index.jsx';
 
 const FolderComponent = () => {
+  const [searchTerm, setSearchTerm] = useState('');
   const { folderId } = useParams();
+  const dispatch = useDispatch();
+  const history = useHistory();
 
-  const { folders, isLoading, userId, files, selectedItems } = useSelector(
+  const {
+    folders,
+    files,
+    isLoading,
+    userId,
+    selectedItems,
+  } = useSelector(
     (state) => ({
       folders: state.filefolders.userFolders,
       files: state.filefolders.userFiles,
@@ -36,225 +45,233 @@ const FolderComponent = () => {
     }),
     shallowEqual
   );
-  const dispatch = useDispatch();
-  const history = useHistory();
 
   useEffect(() => {
     if (isLoading) {
       dispatch(getAdminFolders());
       dispatch(getAdminFiles());
     }
-    if (!folders && !files) {
+    if (!folders || !files) {
       dispatch(getUserFolders(userId));
       dispatch(getUserFiles(userId));
     }
-  }, [dispatch, folders, isLoading]);
-  const userFolders =
-    folders && folders.filter((file) => file.data.parent === folderId);
-
-  const currentFolder =
-    folders && folders.find((folder) => folder.docId === folderId);
-
-  const createdFiles =
-    files &&
-    files.filter(
-      (file) => file.data.parent === folderId && file.data.url === ''
-    );
-
-  const uploadedFiles =
-    files &&
-    files.filter(
-      (file) => file.data.parent === folderId && file.data.url !== ''
-    );
-
-  const isItemSelected = (docId) => {
-    return selectedItems.find((item) => item.docId === docId) ? true : false;
-  };
-
-  const changeRoute = (url) => {
-    dispatch(deselectAll());
-    history.push(url);
-  };
+  }, [dispatch, folders, files, isLoading, userId]);
 
   if (isLoading) {
     return (
       <Row>
-        <Col md="12">
-          <h1 className="text-center my-5">Fetching data...</h1>
+        <Col>
+          <h1 className="text-center my-5">Loading...</h1>
         </Col>
       </Row>
     );
   }
 
-  if (
-    userFolders &&
-    userFolders.length < 1 &&
-    createdFiles &&
-    createdFiles.length < 1 &&
-    uploadedFiles &&
-    uploadedFiles.length < 1
-  ) {
-    return (
-      <>
-        <SubNav currentFolder={currentFolder} />
-        <Row>
-          <Col md="12">
-            <p className="text-center small text-center my-5">Empty Folder</p>
-          </Col>
-        </Row>
-      </>
-    );
-  }
+  // derive direct subfolders and files
+  const userFolders = folders?.filter(f => f.data.parent === folderId);
+  const createdFiles = files?.filter(
+    f => f.data.parent === folderId && !f.data.url
+  );
+  const uploadedFiles = files?.filter(
+    f => f.data.parent === folderId && f.data.url
+  );
+
+  // filter only when typing >=3 chars
+  const filteredCreated =
+    searchTerm.length >= 3
+      ? createdFiles.filter(f =>
+          f.data.name.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      : createdFiles;
+
+  const filteredUploaded =
+    searchTerm.length >= 3
+      ? uploadedFiles.filter(f =>
+          f.data.name.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      : uploadedFiles;
+
+  // search across all descendants
+  const allDescendantFiles = files.filter(f =>
+    [f.data.parent, ...(f.data.path || []).map(p => p.id)].includes(folderId)
+  );
+
+  const matches =
+    searchTerm.length >= 3
+      ? allDescendantFiles.filter(f =>
+          f.data.name.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      : [];
+
+  const isItemSelected = docId =>
+    !!selectedItems.find(i => i.docId === docId);
+
+  const breadcrumb = file =>
+    ((file.data.path || [])
+      .map(p => p.name)
+      .concat([file.data.name])
+      .join(' / ')) ||
+    file.data.name;
+
+  const openInFolder = file => {
+    dispatch(deselectAll());
+    const path = file.data.path || [];
+    const parentId = path.length ? path[path.length - 1].id : '';
+    if (parentId !== folderId) {
+      history.push(`/dashboard/folder/${parentId}`);
+    }
+    dispatch(selectItem({ docId: file.docId, data: file.data, type: 'file' }));
+    setSearchTerm('');
+  };
+
+  const changeRoute = url => {
+    dispatch(deselectAll());
+    history.push(url);
+  };
+
   return (
     <>
-      <SubNav currentFolder={currentFolder} />
-      {userFolders && userFolders.length > 0 && (
-        <>
-          <p className="text-center border-bottom py-2">Created Folders</p>
-          <Row
-            md="2"
-            style={{ height: 'auto' }}
-            className="pt-2  gap-2 pb-4 px-5">
-            {!folders ? (
-              <h1 className="text-center">Fetching Files....</h1>
-            ) : (
-              userFolders.map(({ data, docId }) => (
-                <Col
-                  onDoubleClick={() =>
-                    changeRoute(`/dashboard/folder/${docId}`)
-                  }
-                  onClick={(e) => {
-                    if (isItemSelected(docId)) {
-                      dispatch(deselctFolder(docId));
-                      e.currentTarget.style.background = '#fff';
-                      e.currentTarget.classList.remove('text-white');
-                      e.currentTarget.classList.remove('shadow-sm');
-                    } else {
-                      // dispatch(selectItem({ docId, data, type: 'folder' }));
-                      dispatch(selectFolder({ docId, data }));
-                      e.currentTarget.style.background = '#017bf562';
-                      e.currentTarget.classList.add('text-white');
-                      e.currentTarget.classList.add('shadow-sm');
-                    }
-                  }}
-                  key={docId}
-                  md={2}
-                  className="border h-100 mr-2 d-flex align-items-center justify-content-around flex-column py-1 rounded-2">
-                  <FontAwesomeIcon
-                    icon={faFolder}
-                    className="mt-3"
-                    style={{ fontSize: '3rem' }}
-                  />
-                  <p className="text-center mt-3">{data.name}</p>
-                </Col>
-              ))
-            )}
-          </Row>
-        </>
+      <SearchBar value={searchTerm} onChange={setSearchTerm} />
+
+      {searchTerm.length >= 3 && (
+        <div className="search-results px-5">
+          {matches.length > 0 ? (
+            matches.map(file => (
+              <div
+                key={file.docId}
+                className="search-item py-1 border-bottom"
+                style={{ cursor: 'pointer' }}
+                onClick={() => openInFolder(file)}
+              >
+                <strong>{file.data.name}</strong>
+                <small className="text-muted"> — {breadcrumb(file)}</small>
+              </div>
+            ))
+          ) : (
+            <div className="text-muted px-2 py-1">No results found 😞</div>
+          )}
+        </div>
       )}
-      {createdFiles && createdFiles.length > 0 && (
+
+      <SubNav currentFolder={folders.find(f => f.docId === folderId)} />
+
+      {userFolders?.length > 0 && (
         <>
-          <p className="text-center border-bottom py-2">Created Files</p>
-          <Row
-            md="2"
-            style={{ height: 'auto' }}
-            className="pt-2  gap-2 pb-4 px-5">
-            {createdFiles.map(({ data, docId }) => (
+          <p className="text-center border-bottom py-2">Sub-Folders</p>
+          <Row className="pt-2 gap-2 pb-4 px-5">
+            {userFolders.map(({ data, docId }) => (
               <Col
-                onDoubleClick={() => changeRoute(`/dashboard/file/${docId}`)}
-                onClick={(e) => {
-                  if (isItemSelected(docId)) {
-                    dispatch(deselectItem({ docId }));
-                    e.currentTarget.style.background = '#fff';
-                    e.currentTarget.classList.remove('text-white');
-                    e.currentTarget.classList.remove('shadow-sm');
-                  } else {
-                    dispatch(selectItem({ docId, data, type: 'file' }));
-                    e.currentTarget.style.background = '#017bf562';
-                    e.currentTarget.classList.add('text-white');
-                    e.currentTarget.classList.add('shadow-sm');
-                  }
-                }}
                 key={docId}
                 md={2}
-                className="border h-100 mr-2 d-flex align-items-center justify-content-around flex-column py-1 rounded-2">
-                <FontAwesomeIcon
-                  icon={faFileAlt}
-                  className="mt-3"
-                  style={{ fontSize: '3rem' }}
-                />
-                <p className="text-center mt-3">{data.name}</p>
+                onDoubleClick={() => changeRoute(`/dashboard/folder/${docId}`)}
+                onClick={e => {
+                  if (isItemSelected(docId)) {
+                    dispatch(deselectItem({ docId }));
+                    e.currentTarget.classList.remove('text-white', 'shadow-sm');
+                  } else {
+                    dispatch(selectFolder({ docId, data }));
+                    e.currentTarget.classList.add('text-white', 'shadow-sm');
+                  }
+                }}
+                className={
+                  `border h-100 d-flex flex-column align-items-center justify-content-center rounded-2 py-1
+                  ${isItemSelected(docId) ? 'selected-item text-white shadow-sm' : ''}`
+                }
+              >
+                <FontAwesomeIcon icon={faFolder} size="3x" />
+                <p className="mt-2">{data.name}</p>
               </Col>
             ))}
           </Row>
         </>
       )}
-      {uploadedFiles && uploadedFiles.length > 0 && (
+
+      {filteredCreated?.length > 0 && (
         <>
-          <p className="text-center border-bottom py-2">Uploaded Files</p>
-          <Row
-            md="2"
-            style={{ height: 'auto' }}
-            className="pt-2  gap-2 pb-4 px-5">
-            {uploadedFiles.map(({ data, docId }) => (
+          <p className="text-center border-bottom py-2">Created Files</p>
+          <Row className="pt-2 gap-2 pb-4 px-5">
+            {filteredCreated.map(({ data, docId }) => (
               <Col
-                onDoubleClick={() => changeRoute(`/dashboard/file/${docId}`)}
-                onClick={(e) => {
-                  if (isItemSelected(docId)) {
-                    dispatch(deselectItem({ docId }));
-                    e.currentTarget.style.background = '#fff';
-                    e.currentTarget.classList.remove('text-white');
-                    e.currentTarget.classList.remove('shadow-sm');
-                  } else {
-                    dispatch(selectItem({ docId, data, type: 'file' }));
-                    e.currentTarget.style.background = '#017bf562';
-                    e.currentTarget.classList.add('text-white');
-                    e.currentTarget.classList.add('shadow-sm');
-                  }
-                }}
                 key={docId}
                 md={2}
-                className="border h-100 mr-2 d-flex align-items-center justify-content-around flex-column py-1 rounded-2">
+                onDoubleClick={() => changeRoute(`/dashboard/file/${docId}`)}
+                onClick={e => {
+                  if (isItemSelected(docId)) {
+                    dispatch(deselectItem({ docId }));
+                    e.currentTarget.classList.remove('text-white', 'shadow-sm');
+                  } else {
+                    dispatch(selectItem({ docId, data, type: 'file' }));
+                    e.currentTarget.classList.add('text-white', 'shadow-sm');
+                  }
+                }}
+                                className={
+                  `border h-100 d-flex flex-column align-items-center justify-content-center rounded-2 py-1
+                  ${isItemSelected(docId) ? 'selected-item text-white shadow-sm' : ''}`
+                }
+              >
+                <FontAwesomeIcon icon={faFileAlt} size="3x" />
+                <p className="mt-2">{data.name}</p>
+              </Col>
+            ))}
+          </Row>
+        </>
+      )}
+
+      {filteredUploaded?.length > 0 && (
+        <>
+          <p className="text-center border-bottom py-2">Uploaded Files</p>
+          <Row className="pt-2 gap-2 pb-4 px-5">
+            {filteredUploaded.map(({ data, docId }) => (
+              <Col
+                key={docId}
+                md={2}
+                onDoubleClick={() => changeRoute(`/dashboard/file/${docId}`)}
+                onClick={e => {
+                  if (isItemSelected(docId)) {
+                    dispatch(deselectItem({ docId }));
+                    e.currentTarget.classList.remove('text-white', 'shadow-sm');
+                  } else {
+                    dispatch(selectItem({ docId, data, type: 'file' }));
+                    e.currentTarget.classList.add('text-white', 'shadow-sm');
+                  }
+                }}
+                                className={
+                  `border h-100 d-flex flex-column align-items-center justify-content-center rounded-2 py-1
+                  ${isItemSelected(docId) ? 'selected-item text-white shadow-sm' : ''}`
+                }
+              >
                 <FontAwesomeIcon
                   icon={
                     data.name
-                      .split('.')
-                      [data.name.split('.').length - 1].includes('png') ||
-                    data.name
-                      .split('.')
-                      [data.name.split('.').length - 1].includes('jpg') ||
-                    data.name
-                      .split('.')
-                      [data.name.split('.').length - 1].includes('jpeg') ||
-                    data.name
-                      .split('.')
-                      [data.name.split('.').length - 1].includes('svg') ||
-                    data.name
-                      .split('.')
-                      [data.name.split('.').length - 1].includes('gif')
+                      .toLowerCase()
+                      .match(/\.(png|jpe?g|svg|gif)$/)
                       ? faFileImage
                       : data.name
-                          .split('.')
-                          [data.name.split('.').length - 1].includes('mp4') ||
-                        data.name
-                          .split('.')
-                          [data.name.split('.').length - 1].includes('webm')
+                          .toLowerCase()
+                          .match(/\.(mp4|mpeg|webm)$/)
                       ? faFileVideo
-                      : data.name
-                          .split('.')
-                          [data.name.split('.').length - 1].includes('mp3')
+                      : data.name.toLowerCase().endsWith('.mp3')
                       ? faFileAudio
                       : faFileAlt
                   }
-                  className="mt-3"
-                  style={{ fontSize: '3rem' }}
+                  size="3x"
                 />
-                <p className="text-center mt-3">{data.name}</p>
+                <p className="mt-2">{data.name}</p>
               </Col>
             ))}
           </Row>
         </>
       )}
+
+      {!userFolders?.length &&
+        !filteredCreated?.length &&
+        !filteredUploaded?.length && (
+          <Row>
+            <Col md="12">
+              <p className="text-center my-5">Empty Folder</p>
+            </Col>
+          </Row>
+        )}
     </>
   );
 };

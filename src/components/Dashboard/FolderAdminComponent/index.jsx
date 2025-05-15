@@ -1,80 +1,118 @@
 import { faFile } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Col, Row } from 'react-bootstrap';
 import { shallowEqual, useDispatch, useSelector } from 'react-redux';
-import { useParams } from 'react-router-dom';
+import { useParams, useHistory } from 'react-router-dom';
 import {
   getAdminFiles,
   getAdminFolders,
+  selectItem,
+  deselectAll,
 } from '../../../redux/actionCreators/filefoldersActionCreators.js';
 import SubNav from '../SubNav.js/index.jsx';
+import SearchBar from '../../SearchBar/index.jsx';
 
 const FolderAdminComponent = () => {
+  const [searchTerm, setSearchTerm] = useState('');
   const { folderId } = useParams();
+  const dispatch = useDispatch();
+  const history = useHistory();
 
-  const { files, folders, isLoading } = useSelector(
+  const { files, folders, isLoading, selectedItems } = useSelector(
     (state) => ({
-      folders: state.filefolders.adminFolders,
       files: state.filefolders.adminFiles,
+      folders: state.filefolders.adminFolders,
       isLoading: state.filefolders.isLoading,
+      selectedItems: state.filefolders.selectedItems,
     }),
     shallowEqual
   );
-  const dispatch = useDispatch();
 
   useEffect(() => {
-    if (isLoading && (!folders || !files)) {
+    if (isLoading) {
       dispatch(getAdminFolders());
       dispatch(getAdminFiles());
     }
   }, [dispatch, isLoading]);
-  const adminFiles =
-    files && files.filter((file) => file.data.parent === folderId);
 
-  const currentFolder =
-    folders && folders.find((folder) => folder.docId === folderId);
   if (isLoading) {
     return (
       <Row>
-        <Col md="12">
-          <h1 className="text-center my-5">Fetching data...</h1>
+        <Col>
+          <h1 className="text-center my-5">Loading...</h1>
         </Col>
       </Row>
     );
   }
+
+  const currentFolder = folders.find((f) => f.docId === folderId);
+  const directFiles = files.filter((f) => f.data.parent === folderId);
+
+  const matches =
+    searchTerm.length >= 3
+      ? directFiles.filter((f) =>
+          f.data.name.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      : [];
+
+  const isItemSelected = (docId) =>
+    !!selectedItems.find((item) => item.docId === docId);
+
+  const openInFolder = (file) => {
+    dispatch(deselectAll());
+    history.push(`/dashboard/folder/admin/${folderId}`);
+    dispatch(selectItem({ docId: file.docId, data: file.data, type: 'file' }));
+    setSearchTerm('');
+  };
+
   return (
     <>
+      <SearchBar value={searchTerm} onChange={setSearchTerm} />
+
+      {searchTerm.length >= 3 && (
+        <div className="search-results px-5">
+          {matches.length > 0 ? (
+            matches.map((file) => (
+              <div
+                key={file.docId}
+                className="search-item py-1 border-bottom"
+                style={{ cursor: 'pointer' }}
+                onClick={() => openInFolder(file)}
+              >
+                <strong>{file.data.name}</strong>
+              </div>
+            ))
+          ) : (
+            <div className="text-muted px-2 py-1">No results found 😞</div>
+          )}
+        </div>
+      )}
+
       <SubNav currentFolder={currentFolder} />
+
       <Row>
         <Col md="12">
-          <p className="border-bottom py-2">Created Files</p>
-          <div style={{ height: '150px' }} className="pt-2 pb-4 px-5">
-            {!files ? (
-              <h1 className="text-center">Fetching Files....</h1>
+          <p className="border-bottom py-2">Admin Files</p>
+          <div style={{ height: 150 }} className="pt-2 pb-4 px-5">
+            {directFiles.length === 0 ? (
+              <h5 className="text-center">No files found.</h5>
             ) : (
-              adminFiles.map(({ data, docId }) => (
+              directFiles.map(({ data, docId }) => (
                 <Col
-                  onClick={(e) => {
-                    if (e.currentTarget.classList.contains('text-white')) {
-                      e.currentTarget.style.background = '#fff';
-                      e.currentTarget.classList.remove('text-white');
-                      e.currentTarget.classList.remove('shadow-sm');
-                    } else {
-                      e.currentTarget.style.background = '#017bf562';
-                      e.currentTarget.classList.add('text-white');
-                      e.currentTarget.classList.add('shadow-sm');
-                    }
-                  }}
                   key={docId}
                   md={2}
-                  className="border h-100 mr-2 d-flex align-items-center justify-content-around flex-column py-1 rounded-2">
-                  <FontAwesomeIcon
-                    icon={faFile}
-                    className="mt-3"
-                    style={{ fontSize: '3rem' }}
-                  />
-                  <p className="mt-3">{data.name}</p>
+                  className={`border h-100 mr-2 d-flex flex-column align-items-center justify-content-center rounded-2 py-1 ${
+                    isItemSelected(docId) ? 'text-white shadow-sm' : ''
+                  }`}
+                  onClick={() =>
+                    dispatch(
+                      selectItem({ docId, data, type: 'file' })
+                    )
+                  }
+                >
+                  <FontAwesomeIcon icon={faFile} size="3x" />
+                  <p className="mt-2">{data.name}</p>
                 </Col>
               ))
             )}
