@@ -1,3 +1,4 @@
+// src/components/Dashboard/Home/index.jsx
 import {
   faFileAlt,
   faFileAudio,
@@ -67,8 +68,10 @@ const Home = () => {
     );
   }
 
-  // derive root-level folders and files
+  // derive root-level folders
   const userFolders = allUserFolders?.filter((f) => f.data.parent === '');
+
+  // for non-search display
   const createdFiles = allUserFiles?.filter(
     (f) => f.data.parent === '' && !f.data.url
   );
@@ -76,24 +79,22 @@ const Home = () => {
     (f) => f.data.parent === '' && f.data.url
   );
 
-  // filtered lists
-  const filteredCreated =
-    searchTerm.length >= 3
-      ? createdFiles.filter((f) =>
-          f.data.name.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      : createdFiles;
-  const filteredUploaded =
-    searchTerm.length >= 3
-      ? uploadedFiles.filter((f) =>
-          f.data.name.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      : uploadedFiles;
+  // breadcrumbs
+  const fileBreadcrumb = (file) =>
+    (file.data.path || []).map((p) => p.name).join(' / ') || 'root';
+  const folderBreadcrumb = (folder) =>
+    (folder.data.path || []).map((p) => p.name).join(' / ') || 'root';
 
-  // global search matches
+  // search matches
   const matches =
     searchTerm.length >= 3
       ? allUserFiles.filter((f) =>
+          f.data.name.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      : [];
+  const folderMatches =
+    searchTerm.length >= 3
+      ? [...adminFolders, ...allUserFolders].filter((f) =>
           f.data.name.toLowerCase().includes(searchTerm.toLowerCase())
         )
       : [];
@@ -101,18 +102,11 @@ const Home = () => {
   const isItemSelected = (docId) =>
     !!selectedItems.find((item) => item.docId === docId);
 
-  const breadcrumb = (file) =>
-    (file.data.path || []).map((p) => p.name).join(' / ') || 'root';
-
   const openInFolder = (file) => {
     dispatch(deselectAll());
-    const path = file.data.path || [];
-    const parentId = path.length > 0 ? path[path.length - 1].id : '';
-    if (parentId) {
-      history.push(`/dashboard/folder/${parentId}`);
-    } else {
-      history.push('/dashboard');
-    }
+    const p = file.data.path || [];
+    const parentId = p.length ? p[p.length - 1].id : '';
+    history.push(parentId ? `/dashboard/folder/${parentId}` : '/dashboard');
     dispatch(selectItem({ docId: file.docId, data: file.data, type: 'file' }));
     setSearchTerm('');
   };
@@ -137,26 +131,70 @@ const Home = () => {
 
       {searchTerm.length >= 3 && (
         <div className="search-results px-5">
-          {matches.length > 0 ? (
-            matches.map((file) => (
-              <div
-                key={file.docId}
-                className="search-item py-1 border-bottom"
-                style={{ cursor: 'pointer' }}
-                onClick={() => openInFolder(file)}
-              >
-                <strong>{file.data.name}</strong>
-                <small className="text-muted"> — {breadcrumb(file)}</small>
-              </div>
-            ))
+          {/* FOLDERS */}
+          <p className="text-center border-bottom py-2">
+            <strong>Folders</strong>
+          </p>
+          {folderMatches.length > 0 ? (
+            folderMatches.map(({ data, docId }) => {
+              // on folder-click: navigate to parent and select this folder
+              const path = data.path || [];
+              const parentId = path.length ? path[path.length - 1].id : '';
+              return (
+                <div
+                  key={docId}
+                  className="search-item py-1 border-bottom"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => {
+                    dispatch(deselectAll());
+                    history.push(
+                      parentId
+                        ? `/dashboard/folder/${parentId}`
+                        : '/dashboard'
+                    );
+                    dispatch(selectFolder({ docId, data }));
+                    setSearchTerm('');
+                  }}
+                >
+                  <FontAwesomeIcon icon={faFolder} />{' '}
+                  <strong>{data.name}</strong>
+                  <small className="text-muted">
+                    {' '}— {folderBreadcrumb({ data, docId })}
+                  </small>
+                </div>
+              );
+            })
           ) : (
-            <div className="text-muted px-2 py-1">No results found 😞</div>
+            <div className="text-muted px-2 py-1">No matching items :/</div>
+          )}
+
+          {/* FILES */}
+          {matches.length > 0 && (
+            <>
+              <p className="text-center border-bottom py-2">
+                <strong>Files</strong>
+              </p>
+              {matches.map((file) => (
+                <div
+                  key={file.docId}
+                  className="search-item py-1 border-bottom"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => openInFolder(file)}
+                >
+                  <strong>{file.data.name}</strong>
+                  <small className="text-muted">
+                    {' '}— {fileBreadcrumb(file)}
+                  </small>
+                </div>
+              ))}
+            </>
           )}
         </div>
       )}
 
       <SubNav currentFolder="root folder" />
 
+      {/* Admin Folders */}
       {adminFolders?.length > 0 && (
         <>
           <p className="text-center border-bottom py-2">Admin Folders</p>
@@ -169,10 +207,8 @@ const Home = () => {
                   history.push(`/dashboard/folder/admin/${docId}`)
                 }
                 onClick={() => toggleSelect(docId, data, 'folder')}
-                className={
-                  `border h-100 d-flex flex-column align-items-center justify-content-center rounded-2 py-1
-                  ${isItemSelected(docId) ? 'selected-item text-white shadow-sm' : ''}`
-                }
+                className={`border h-100 d-flex flex-column align-items-center justify-content-center rounded-2 py-1
+                  ${isItemSelected(docId) ? 'selected-item text-white shadow-sm' : ''}`}
               >
                 <FontAwesomeIcon icon={faFolder} size="3x" />
                 <p className="mt-2">{data.name}</p>
@@ -182,6 +218,7 @@ const Home = () => {
         </>
       )}
 
+      {/* User Folders */}
       {userFolders?.length > 0 && (
         <>
           <p className="text-center border-bottom py-2">Created Folders</p>
@@ -192,10 +229,8 @@ const Home = () => {
                 md={2}
                 onDoubleClick={() => changeRoute(`/dashboard/folder/${docId}`)}
                 onClick={() => toggleSelect(docId, data, 'folder')}
-                className={
-                  `border h-100 d-flex flex-column align-items-center justify-content-center rounded-2 py-1
-                  ${isItemSelected(docId) ? 'selected-item text-white shadow-sm' : ''}`
-                }
+                className={`border h-100 d-flex flex-column align-items-center justify-content-center rounded-2 py-1
+                  ${isItemSelected(docId) ? 'selected-item text-white shadow-sm' : ''}`}
               >
                 <FontAwesomeIcon icon={faFolder} size="3x" />
                 <p className="mt-2">{data.name}</p>
@@ -205,20 +240,19 @@ const Home = () => {
         </>
       )}
 
-      {filteredCreated?.length > 0 && (
+      {/* Created Files */}
+      {createdFiles?.length > 0 && (
         <>
           <p className="text-center border-bottom py-2">Created Files</p>
           <Row className="pt-2 gap-2 pb-4 px-5">
-            {filteredCreated.map(({ data, docId }) => (
+            {createdFiles.map(({ data, docId }) => (
               <Col
                 key={docId}
                 md={2}
                 onDoubleClick={() => changeRoute(`/dashboard/file/${docId}`)}
                 onClick={() => toggleSelect(docId, data, 'file')}
-                className={
-                  `border h-100 d-flex flex-column align-items-center justify-content-center rounded-2 py-1
-                  ${isItemSelected(docId) ? 'selected-item text-white shadow-sm' : ''}`
-                }
+                className={`border h-100 d-flex flex-column align-items-center justify-content-center rounded-2 py-1
+                  ${isItemSelected(docId) ? 'selected-item text-white shadow-sm' : ''}`}
               >
                 <FontAwesomeIcon icon={faFileAlt} size="3x" />
                 <p className="mt-2">{data.name}</p>
@@ -228,28 +262,27 @@ const Home = () => {
         </>
       )}
 
-      {filteredUploaded?.length > 0 && (
+      {/* Uploaded Files */}
+      {uploadedFiles?.length > 0 && (
         <>
           <p className="text-center border-bottom py-2">Uploaded Files</p>
           <Row className="pt-2 gap-2 pb-4 px-5">
-            {filteredUploaded.map(({ data, docId }) => (
+            {uploadedFiles.map(({ data, docId }) => (
               <Col
                 key={docId}
                 md={2}
                 onDoubleClick={() => changeRoute(`/dashboard/file/${docId}`)}
                 onClick={() => toggleSelect(docId, data, 'file')}
-                className={
-                  `border h-100 d-flex flex-column align-items-center justify-content-center rounded-2 py-1
-                  ${isItemSelected(docId) ? 'selected-item text-white shadow-sm' : ''}`
-                }
+                className={`border h-100 d-flex flex-column align-items-center justify-content-center rounded-2 py-1
+                  ${isItemSelected(docId) ? 'selected-item text-white shadow-sm' : ''}`}
               >
                 <FontAwesomeIcon
                   icon={
-                    data.name.toLowerCase().match(/\.(png|jpe?g|svg|gif)$/)
+                    data.name.match(/\.(png|jpe?g|svg|gif)$/)
                       ? faFileImage
-                      : data.name.toLowerCase().match(/\.(mp4|mpeg|webm)$/)
+                      : data.name.match(/\.(mp4|mpeg|webm)$/)
                       ? faFileVideo
-                      : data.name.toLowerCase().endsWith('.mp3')
+                      : data.name.endsWith('.mp3')
                       ? faFileAudio
                       : faFileAlt
                   }
@@ -262,12 +295,9 @@ const Home = () => {
         </>
       )}
 
-      {(!adminFolders?.length &&
-        !userFolders?.length &&
-        !filteredCreated?.length &&
-        !filteredUploaded?.length) && (
+      {!(adminFolders?.length || userFolders?.length || createdFiles?.length || uploadedFiles?.length) && (
         <Row>
-          <Col md="12">
+          <Col>
             <p className="text-center my-5">No items to display.</p>
           </Col>
         </Row>
