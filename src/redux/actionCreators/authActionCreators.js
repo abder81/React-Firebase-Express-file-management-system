@@ -4,9 +4,9 @@ import userModel from "../../models/users";
 import { RESET_USER, SET_USER } from "../actions/authActions";
 import { RESET_FOLDERS_FILES } from "../actions/filefoldersActions";
 
-const setUser = (data) => ({
+const setUser = ({ userId, user, isAdmin }) => ({
   type: SET_USER,
-  payload: data,
+  payload: { userId, user, isAdmin },
 });
 
 const resetUser = () => ({
@@ -49,10 +49,19 @@ export const loginUser =
     auth
       .signInWithEmailAndPassword(email, password)
       .then(async (user) => {
-        const usr = await database.users
-          .where("uid", "==", user.user.uid)
-          .get();
-        console.log(usr.docs);
+
+       // 1) Get custom claims
+       const tokenResult = await result.user.getIdTokenResult(true);
+       const isAdmin = !!tokenResult.claims.admin;
+       // 2) (Optional) Load your user metadata as before
+       // const usr = await database.users.where("uid", "==", result.user.uid).get();
+       // 3) Dispatch with isAdmin
+       dispatch(setUser({
+         userId: result.user.uid,
+         user: { data: result.user.providerData[0] },
+         isAdmin,
+       }));
+
       })
       .catch(() => {
         setError("Invalid Email Or Password!");
@@ -60,14 +69,14 @@ export const loginUser =
   };
 
 export const getUser = () => (dispatch) => {
-  auth.onAuthStateChanged(function (user) {
+  auth.onAuthStateChanged(async function (user) {
     if (user) {
-      dispatch(
-        setUser({
-          userId: auth.currentUser.uid,
-          user: { data: auth.currentUser.providerData[0] },
-        })
-      );
+     const tokenResult = await user.getIdTokenResult();
+     dispatch(setUser({
+       userId: user.uid,
+       user: { data: user.providerData[0] },
+       isAdmin: !!tokenResult.claims.admin,
+     }));
     } else {
       dispatch(resetUser());
     }

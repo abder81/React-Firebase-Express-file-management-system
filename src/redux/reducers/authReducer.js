@@ -4,6 +4,7 @@ const initialState = {
   isLoggedIn: false,
   user: null,
   userId: null,
+  isAdmin: false,
 };
 
 const authReducer = (state = initialState, { type, payload }) => {
@@ -13,6 +14,7 @@ const authReducer = (state = initialState, { type, payload }) => {
         isLoggedIn: true,
         user: payload.user,
         userId: payload.userId,
+        isAdmin: payload.isAdmin,
       };
       return state;
     case RESET_USER:

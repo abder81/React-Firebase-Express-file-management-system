@@ -5,9 +5,18 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
+const admin = require("firebase-admin");
+const authMiddleware = require("./authMiddleware");
+const adminOnly = require("./adminOnly");
+
 const app = express();
 app.use(cors());
 app.use(express.json()); // To parse JSON bodies
+
+// initialize Admin SDK (if you haven’t already)
+admin.initializeApp({
+  credential: admin.credential.cert(require("./serviceAccountKey.json")),
+});
 
 // Set up file storage (flat structure in uploads folder)
 const uploadDir = path.join(__dirname, "uploads");
@@ -29,45 +38,50 @@ const upload = multer({
   },
 });
 
-app.post("/upload", upload.single("file"), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-  const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
-  res.json({ url: fileUrl }); // Return the URL of the uploaded file
-});
+// Admin-only upload
+app.post(
+  "/upload",
+  authMiddleware,      // verify token
+  adminOnly,          // check admin claim
+  upload.single("file"),
+  (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    const url = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+    res.json({ url });
+  }
+);
 
-app.use("/uploads", express.static(uploadDir));  // Serve files from the uploads directory
+// List & serve files: anyone signed-in (authMiddleware)
+app.use(
+  "/uploads",
+  authMiddleware,      // ensure user is authenticated
+  express.static(uploadDir)
+);
+
 
 app.use(express.json());  // To parse JSON request body
 
 
 // Endpoint to delete a file from server's uploads directory
-app.delete("/delete", (req, res) => {
-  const { filename } = req.body;  // Extract filename from request body
-  console.log("Received request to delete:", filename);  // Debug log
-
-  if (!filename) return res.status(400).json({ error: "Filename is required to delete" });
-
-  const filePath = path.join(uploadDir, filename);  // Full path of file to delete
-  console.log("File path to delete:", filePath); // Debug log
-
-  fs.exists(filePath, (exists) => {
-    if (!exists) {
-      console.log("File not found at path:", filePath);  // Debug log
-      return res.status(404).json({ error: "File not found" });  // File doesn't exist
-    }
-
-    fs.unlink(filePath, (err) => {
-      if (err) {
-        console.log("Error deleting file:", err);  // Debug log
-        return res.status(500).json({ error: "Failed to delete file" });
-      }
-
-      console.log("File deleted successfully!");  // Debug log
-      res.json({ message: "File deleted successfully" });
+// Admin-only delete
+app.delete(
+  "/delete",
+  authMiddleware,
+  adminOnly,
+  (req, res) => {
+    const { filename } = req.body;
+    if (!filename) return res.status(400).json({ error: "Filename is required" });
+    const filePath = path.join(uploadDir, filename);
+    fs.exists(filePath, exists => {
+      if (!exists) return res.status(404).json({ error: "File not found" });
+      fs.unlink(filePath, err => {
+        if (err) return res.status(500).json({ error: "Failed to delete file" });
+        res.json({ message: "File deleted successfully" });
+      });
     });
-  });
-});
+  }
+);
 
 
 

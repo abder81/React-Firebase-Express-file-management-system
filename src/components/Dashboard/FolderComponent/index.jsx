@@ -13,8 +13,8 @@ import { useHistory, useParams } from 'react-router-dom';
 import {
   getAdminFiles,
   getAdminFolders,
-  getUserFiles,
-  getUserFolders,
+  getSharedFiles,
+  getSharedFolders,
   selectItem,
   selectFolder,
   deselectAll,
