@@ -14,8 +14,8 @@ import { useHistory } from 'react-router-dom';
 import {
   getAdminFiles,
   getAdminFolders,
-  getUserFiles,
-  getUserFolders,
+  getSharedFiles,
+  getSharedFolders,
   selectItem,
   selectFolder,
   deselectAll,
@@ -53,8 +53,8 @@ const Home = () => {
       dispatch(getAdminFiles());
     }
     if (!allUserFolders) {
-      dispatch(getUserFiles(userId));
-      dispatch(getUserFolders(userId));
+      dispatch(getSharedFiles());
+      dispatch(getSharedFolders());
     }
   }, [dispatch, isLoading, allUserFolders, userId]);
 
@@ -221,7 +221,7 @@ const Home = () => {
       {/* User Folders */}
       {userFolders?.length > 0 && (
         <>
-          <p className="text-center border-bottom py-2">Created Folders</p>
+          <p className="text-center border-bottom py-2">Shared Folders</p>
           <Row className="pt-2 gap-2 pb-4 px-5">
             {userFolders.map(({ data, docId }) => (
               <Col
@@ -243,7 +243,7 @@ const Home = () => {
       {/* Created Files */}
       {createdFiles?.length > 0 && (
         <>
-          <p className="text-center border-bottom py-2">Created Files</p>
+          <p className="text-center border-bottom py-2">Shared Files</p>
           <Row className="pt-2 gap-2 pb-4 px-5">
             {createdFiles.map(({ data, docId }) => (
               <Col

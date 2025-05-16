@@ -25,3 +25,4 @@ export const database = {
 export const storage = firebase.storage();
 
 export const auth = firebase.auth();
+

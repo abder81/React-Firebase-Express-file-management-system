@@ -48,7 +48,7 @@ export const getAdminFolders = () => (dispatch) => {
       dispatch(setLoading(false));
     })
     .catch((err) => {
-      toast.error('Failed to fetch data!');
+      // toast.error('Failed to fetch data!');
     });
 };
 export const getAdminFiles = () => (dispatch) => {
@@ -63,7 +63,7 @@ export const getAdminFiles = () => (dispatch) => {
       dispatch(setAdminFiles(allFiles));
     })
     .catch((err) => {
-      toast.error('Failed to fetch data!');
+      // toast.error('Failed to fetch data!');
     });
 };
 
@@ -72,10 +72,9 @@ const setUserFolders = (data) => ({
   payload: data,
 });
 
-export const getUserFolders = (userId) => async (dispatch) => {
-  if (userId) {
+export const getSharedFolders = () => async (dispatch) => {
+  // fetch every folder, regardless of who created it
     database.docs
-      .where('createdBy', '==', userId)
       .get()
       .then((folders) => {
         const allFolders = [];
@@ -86,9 +85,8 @@ export const getUserFolders = (userId) => async (dispatch) => {
       })
       .catch((err) => {
         console.log('foldererr', err);
-        toast.error('Failed to fetch data!');
+        // toast.error('Failed to fetch data!');
       });
-  }
 };
 
 const addUserFolder = (data) => ({
@@ -115,10 +113,9 @@ const setUserFiles = (data) => ({
   payload: data,
 });
 
-export const getUserFiles = (userId) => (dispatch) => {
-  if (userId) {
+export const getSharedFiles = () => (dispatch) => {
+  // fetch every file, regardless of who created it
     database.files
-      .where('createdBy', '==', userId)
       .get()
       .then((files) => {
         const allFiles = [];
@@ -129,9 +126,8 @@ export const getUserFiles = (userId) => (dispatch) => {
       })
       .catch((err) => {
         console.log('foldererr', err);
-        toast.error('Failed to fetch data!');
+        // toast.error('Failed to fetch data!');
       });
-  }
 };
 
 const addUserFile = (data) => ({
